@@ -90,7 +90,7 @@ private extension CMTime {
 /// A simple `UIView` subclass that is backed by an `AVPlayerLayer` layer.
 @objc public class PlayerView: UIView {
     
-    
+    var playerItem:AVPlayerItem?
     
     private var playerLayer: AVPlayerLayer {
         return layer as! AVPlayerLayer
@@ -205,13 +205,14 @@ private extension CMTime {
     public func play() {
         rate = 1
         //player?.play()
+        //let a = self.player? as? AVQueuePlayer
+        
     }
     
     public func pause() {
         rate = 0
         //player?.pause()
     }
-    
     
     public func stop() {
         currentTime = 0
@@ -266,37 +267,93 @@ private extension CMTime {
         let viewImage: UIImage = UIImage(CGImage: ref)
         return (viewImage, timePicture)
     }
-    public var url: NSURL? {
+    /*public var url: NSURL? {
+     didSet {
+     guard let url = url else {
+     resetPlayer()
+     return
+     }
+     //reset before put another URL
+     resetPlayer()
+     let avPlayer = AVQueuePlayer(URL: url)
+     self.player = avPlayer
+     
+     avPlayer.actionAtItemEnd = .None
+     
+     
+     //avPlayer.play()
+     
+     
+     let playerItem = avPlayer.currentItem!
+     
+     avPlayer.status
+     playerItem.status
+     
+     
+     avPlayer.addObserver(self, forKeyPath: "status", options: [.New], context: &statusContext)
+     avPlayer.addObserver(self, forKeyPath: "rate", options: [.New], context: &rateContext)
+     playerItem.addObserver(self, forKeyPath: "loadedTimeRanges", options: [], context: &loadedContext)
+     playerItem.addObserver(self, forKeyPath: "duration", options: [], context: &durationContext)
+     playerItem.addObserver(self, forKeyPath: "status", options: [], context: &statusItemContext)
+     //playerItem.addObserver(self, forKeyPath: "currentTime", options: [], context: &currentTimeContext)
+     
+     NSNotificationCenter.defaultCenter().addObserver(self, selector: .playerItemDidPlayToEndTime, name: AVPlayerItemDidPlayToEndTimeNotification, object: playerItem)
+     avPlayer.status
+     // Do any additional setup after loading the view, typically from a nib.
+     }
+     }*/
+    
+    /**
+     List of Videos to watch
+     */
+    
+    public func switchToNextVideo() {
+        
+        let a = self.player as! AVQueuePlayer
+        a.advanceToNextItem()
+    }
+    
+    
+    public var items: [AVPlayerItem]? {
         didSet {
-            guard let url = url else {
+            guard let items = items else {
                 resetPlayer()
                 return
             }
-            //reset before put another URL
-            resetPlayer()
-            let avPlayer = AVPlayer(URL: url)
+            
+            var avPlayer:AVQueuePlayer!
+            
+            if let newPlayer = player {
+                
+                //Before creating new queue remove the registered Observers of old empty queue
+                newPlayer.removeObserver(self, forKeyPath: "status")
+                newPlayer.removeObserver(self, forKeyPath: "rate")
+                
+                self.playerItem!.removeObserver(self, forKeyPath: "loadedTimeRanges")
+                self.playerItem!.removeObserver(self, forKeyPath: "duration")
+                self.playerItem!.removeObserver(self, forKeyPath: "status")
+            }
+            
+            //Create AVQueuePlayer, which is a subclass of AVPlayer
+            avPlayer = AVQueuePlayer(items:items)
             self.player = avPlayer
             
             avPlayer.actionAtItemEnd = .None
             
-            
-            //avPlayer.play()
-            
-            
-            let playerItem = avPlayer.currentItem!
+            self.playerItem = avPlayer.currentItem!
             
             avPlayer.status
-            playerItem.status
-            
+            self.playerItem!.status
             
             avPlayer.addObserver(self, forKeyPath: "status", options: [.New], context: &statusContext)
             avPlayer.addObserver(self, forKeyPath: "rate", options: [.New], context: &rateContext)
-            playerItem.addObserver(self, forKeyPath: "loadedTimeRanges", options: [], context: &loadedContext)
-            playerItem.addObserver(self, forKeyPath: "duration", options: [], context: &durationContext)
-            playerItem.addObserver(self, forKeyPath: "status", options: [], context: &statusItemContext)
+            
+            self.playerItem!.addObserver(self, forKeyPath: "loadedTimeRanges", options: [], context: &loadedContext)
+            self.playerItem!.addObserver(self, forKeyPath: "duration", options: [], context: &durationContext)
+            self.playerItem!.addObserver(self, forKeyPath: "status", options: [], context: &statusItemContext)
             //playerItem.addObserver(self, forKeyPath: "currentTime", options: [], context: &currentTimeContext)
             
-             NSNotificationCenter.defaultCenter().addObserver(self, selector: .playerItemDidPlayToEndTime, name: AVPlayerItemDidPlayToEndTimeNotification, object: playerItem)
+            NSNotificationCenter.defaultCenter().addObserver(self, selector: .playerItemDidPlayToEndTime, name: AVPlayerItemDidPlayToEndTimeNotification, object: playerItem)
             avPlayer.status
             // Do any additional setup after loading the view, typically from a nib.
         }
@@ -342,14 +399,12 @@ private extension CMTime {
     
     public func playerItemDidPlayToEndTime(aNotification: NSNotification) {
         //notification of player to stop
-        pause()
+        print("video did played until end!")
+        stop()
         self.delegate?.playerVideo(playerFinished: self)
     }
     
     public override func observeValueForKeyPath(keyPath: String?, ofObject object: AnyObject?, change: [String : AnyObject]?, context: UnsafeMutablePointer<Void>) {
-        
-        //print("CHANGE",keyPath)
-        
         
         if context == &statusContext {
             
@@ -381,6 +436,7 @@ private extension CMTime {
             
         } else if context == &statusItemContext{
             //status of item has changed
+            
             if let currentItem = player?.currentItem {
                 
                 self.delegate?.playerVideo(self, statusItemPlayer: currentItem.status, error: currentItem.error)
